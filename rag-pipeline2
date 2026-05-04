@@ -1,0 +1,105 @@
+# ============================================
+# RAG PIPELINE V2 - Class 2
+# With OpenAI GPT + Real PDF + Excel Support
+# Built on iPad - No excuses!
+# ============================================
+
+# CELL 1 - Install all dependencies
+!pip install langchain langchain-community langchain-text-splitters langchain-openai openai sentence-transformers faiss-cpu pypdf unstructured openpyxl msoffcrypto-tool
+
+# CELL 2 - Imports and OpenAI connection
+import os
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_community.document_loaders import PyPDFLoader, UnstructuredExcelLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+
+# Your OpenAI API key
+os.environ["OPENAI_API_KEY"] = "sk-your-key-here"
+
+# Test connection
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+response = llm.invoke("Say hello in one word")
+print(response.content)
+
+# CELL 3A - Load a PDF (Option 1)
+import urllib.request
+urllib.request.urlretrieve(
+    "https://arxiv.org/pdf/1706.03762.pdf",
+    "sample.pdf"
+)
+loader = PyPDFLoader("sample.pdf")
+documents = loader.load()
+print(f"PDF pages loaded: {len(documents)}")
+
+# CELL 3B - Load YOUR Excel/PDF from iPad (Option 2)
+from google.colab import files
+from langchain_community.document_loaders import UnstructuredExcelLoader
+
+# Upload your file - shows file picker on iPad
+uploaded = files.upload()
+filename = list(uploaded.keys())[0]
+print(f"Uploaded: {filename}")
+
+# Detect file type and load accordingly
+if filename.endswith(".pdf"):
+    loader = PyPDFLoader(filename)
+elif filename.endswith(".xls") or filename.endswith(".xlsx"):
+    loader = UnstructuredExcelLoader(filename)
+
+documents = loader.load()
+print(f"Pages/Sheets loaded: {len(documents)}")
+
+# CELL 4 - Chunk the documents
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=500,   # bigger than v1 for better context
+    chunk_overlap=50
+)
+chunks = splitter.split_documents(documents)
+print(f"Total chunks created: {len(chunks)}")
+print(f"\nSample chunk:\n{chunks[0].page_content}")
+
+# CELL 5 - Create embeddings and vector store
+# OpenAI embeddings - much better than HuggingFace v1
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+vectorstore = FAISS.from_documents(chunks, embeddings)
+print(f"Vector store ready!")
+print(f"Total vectors stored: {vectorstore.index.ntotal}")
+
+# CELL 6 - Build RAG chain with GPT
+prompt = ChatPromptTemplate.from_template("""
+You are a helpful AI assistant.
+Answer the question based only on the context provided.
+If you don't know the answer, say "I don't know."
+
+Context: {context}
+
+Question: {question}
+
+Answer:
+""")
+
+# k=3 means fetch 3 most relevant chunks
+retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+# The RAG chain - like a Spark pipeline but for AI!
+# Question → retriever fetches context → fills prompt → GPT answers
+rag_chain = (
+    {"context": retriever, "question": RunnablePassthrough()}
+    | prompt
+    | llm
+)
+
+# CELL 7 - Ask questions!
+def ask(question):
+    print(f"\nQ: {question}")
+    response = rag_chain.invoke(question)
+    print(f"A: {response.content}")
+    print("-" * 50)
+
+# Test with your own questions!
+ask("What is the current value of the car?")
+ask("What will the value be after 5 years?")
+ask("How much does the car depreciate each year?")
