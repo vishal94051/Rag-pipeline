@@ -30,3 +30,10 @@ built using LangChain, FAISS, and HuggingFace transformers.
 ## Author
 6 years Data Engineering experience (ADF, ADB, Spark, Python)
 Transitioning into AI/ML Engineering
+
+## V2 Updates
+- OpenAI GPT-3.5-turbo integration
+- Real PDF support (Attention Is All You Need paper)
+- Excel file support
+- Queried real car depreciation data from lease Excel file
+- Modern LangChain LCEL chain syntax
